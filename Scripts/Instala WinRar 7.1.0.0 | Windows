@@ -1,0 +1,73 @@
+@echo off
+setlocal
+
+:: Caminho do executável
+set "APPPATH=C:\Program Files\WinRAR\WinRAR.exe"
+
+:: Verifica se o aplicativo está instalado
+if not exist "%APPPATH%" (
+    echo não está instalado. Então será instalado.
+    goto install
+)
+
+:: Obtém a versão
+echo Obtendo a versão do aplicativo...
+for /f "tokens=2 delims==" %%V in ('wmic datafile where "name='%APPPATH:\=\\%'" get Version /value ^| find "="') do set INSTALLED_VERSION=%%V
+
+:: Verifica se a versão foi obtida corretamente
+if not defined INSTALLED_VERSION (
+    echo Erro ao obter a versão do. Prosseguindo com a instalação.
+    powershell -Command "$host.SetShouldExit(0)"
+    goto install
+)
+
+echo Versão instalada: %INSTALLED_VERSION%
+
+:: Define a versão mínima necessária (Ajuste de acordo com a versão do executavel)
+set "MIN_VERSION=7.1.0.0"
+
+:: Converte versões para um formato numérico comparável
+for /f "tokens=1-4 delims=." %%a in ("%INSTALLED_VERSION%") do set "IV=%%a%%b%%c%%d"
+for /f "tokens=1-4 delims=." %%a in ("%MIN_VERSION%") do set "MV=%%a%%b%%c%%d"
+
+:: Se a versão instalada já for igual ou superior à mínima, não precisa instalar
+if %IV% GEQ %MV% (
+    echo O aplicativo já está atualizado para a versão %INSTALLED_VERSION%.
+    powershell -Command "$host.SetShouldExit(0)"
+    exit /b 0
+) else (
+    echo O aplicativo não está atualizado. Prosseguindo com a atualização.
+)
+
+:: Instalação do aplicativo
+:install
+echo Atualizando...
+
+:: Garante que o diretório C:\TEMP existe
+if not exist "C:\TEMP\" mkdir "C:\TEMP\"
+
+cd /d "C:\TEMP"
+
+:: Baixa o instalador do aplicativo com mais detalhes de erro
+echo Baixando o instalador...
+powershell -Command "& {try {Invoke-WebRequest -Uri 'https://www.win-rar.com/fileadmin/winrar-versions/winrar/winrar-x64-701br.exe' -OutFile 'winrar-x64-701br.exe'} catch {Write-Host 'Erro ao baixar: ' $_.Exception.Message; exit 3}}"
+if %errorlevel% neq 0 (
+    echo Erro ao baixar o instalador.
+    powershell -Command "$host.SetShouldExit(1)"
+    exit /b 1
+)
+
+:: Instala a atualização silenciosamente com os parâmetros corretos
+echo Instalando...
+start /wait winrar-x64-701br.exe /S
+
+:: Verifica se ocorreu erro durante a instalação
+if %errorlevel% neq 0 (
+    echo Erro durante a instalação.
+    powershell -Command "$host.SetShouldExit(1)"
+    exit /b 1
+)
+
+echo Atualização concluída com sucesso!
+powershell -Command "$host.SetShouldExit(0)"
+exit /b 0
