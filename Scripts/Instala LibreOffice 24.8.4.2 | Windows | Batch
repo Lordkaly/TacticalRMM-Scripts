@@ -1,0 +1,57 @@
+@echo off
+setlocal
+
+:: Caminho do executável do LibreOffice
+set "SOFFICE_PATH=C:\Program Files\LibreOffice\program\soffice.exe"
+
+:: Verifica se o LibreOffice está instalado
+if not exist "%SOFFICE_PATH%" (
+    echo O LibreOffice não está instalado. Portanto será instalado.
+goto install
+)
+
+:: Obtém a versão instalada do LibreOffice
+for /f "tokens=2 delims==" %%V in ('wmic datafile where "name='%SOFFICE_PATH:\=\\%'" get Version /value ^| find "="') do set INSTALLED_VERSION=%%V
+
+echo Versão instalada: %INSTALLED_VERSION%
+
+:: Define a versão mínima necessária
+set "MIN_VERSION=24.8.4.2"
+
+:: Compara a versão instalada com a mínima necessária
+for /f "tokens=1-4 delims=." %%a in ("%INSTALLED_VERSION%") do set "IV=%%a%%b%%c%%d"
+for /f "tokens=1-4 delims=." %%a in ("%MIN_VERSION%") do set "MV=%%a%%b%%c%%d"
+
+if %IV% GEQ %MV% (
+    echo O LibreOffice já está atualizado para a versão %INSTALLED_VERSION%.
+    powershell -Command "$host.SetShouldExit(0)"
+    exit /b 0
+)
+
+echo Atualizando o LibreOffice...
+:install
+:: Garante que o diretório C:\TEMP existe
+if not exist "C:\TEMP\" mkdir "C:\TEMP\"
+
+cd /d "C:\TEMP"
+
+:: Baixa o instalador do LibreOffice
+powershell -Command "& {try {Invoke-WebRequest -Uri 'https://download.documentfoundation.org/libreoffice/stable/24.8.4/win/x86_64/LibreOffice_24.8.4_Win_x86-64.msi' -OutFile 'LibreOffice_24.8.4_Win_x86-64.msi'} catch {Write-Host 'Erro ao baixar: ' $_.Exception.Message; exit 2}}"
+if %errorlevel% neq 0 (
+    echo Erro ao baixar o instalador.
+    powershell -Command "$host.SetShouldExit(1)"
+    exit /b 1
+)
+
+:: Instala a atualização silenciosamente
+start /wait msiexec /i LibreOffice_24.8.4_Win_x86-64.msi /qn /norestart /l* LibreOffice_install_log.txt REBOOTYESNO=No REGISTER_ALL_MSO_TYPES=1 REGISTER_DOC=1
+
+if %errorlevel% neq 0 (
+    echo Erro durante a instalação.
+    powershell -Command "$host.SetShouldExit(1)"
+    exit /b 1
+)
+
+echo Atualização concluída com sucesso!
+powershell -Command "$host.SetShouldExit(0)"
+exit /b 0
